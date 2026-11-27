@@ -1,0 +1,1 @@
+ALTER TABLE channels ADD COLUMN blocked_until INTEGER NOT NULL DEFAULT 0;
