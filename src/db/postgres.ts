@@ -4,6 +4,7 @@ import { Pool, type PoolClient, types } from 'pg';
 export function createPostgresPool(connectionString: string): Pool {
   const pool = new Pool({
     connectionString,
+    enableChannelBinding: true,
     max: 4,
     connectionTimeoutMillis: 10_000,
     idleTimeoutMillis: 5_000,
