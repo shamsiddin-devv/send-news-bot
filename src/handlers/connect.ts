@@ -24,7 +24,7 @@ export function createConnectFlow(repository: Repository, telegram: TelegramGate
       try {
         const access = await telegram.verify(identifier, ownerId);
         if (!access.ok) return access.message;
-        const status = repository.connectChannel(ownerId, access.id, access.title, {
+        const status = await repository.connectChannel(ownerId, access.id, access.title, {
           dailyLimit: config.DEFAULT_DAILY_LIMIT,
           topics: [...defaultTopics],
         }, config.MAX_CHANNELS_PER_USER);

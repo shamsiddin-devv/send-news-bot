@@ -28,29 +28,31 @@ export interface NewsItem extends NewsInput {
 export interface UzbekContent { title: string; summary: string }
 export type ConnectResult = 'saved' | 'unavailable' | 'limit';
 
+type Awaitable<T> = T | Promise<T>;
+
 export interface Repository {
-  touchUser(userId: number, now: number): void;
-  setUserBlocked(userId: number, blocked: boolean): void;
-  connectChannel(ownerId: number, id: number, title: string, defaults: ChannelSettings, maxChannels: number): ConnectResult;
-  listChannels(ownerId: number): Channel[];
-  getChannel(ownerId: number, channelId: number): Channel | undefined;
-  setEnabled(ownerId: number, channelId: number, enabled: boolean): boolean;
-  updateSettings(ownerId: number, channelId: number, settings: ChannelSettings): boolean;
-  markChannelUnavailable(channelId: number): void;
-  acquireDueChannels(now: number, limit: number): Channel[];
-  deferChannel(channelId: number, until: number): void;
-  saveNews(input: NewsInput): boolean;
-  candidates(channelId: number, since: number, now: number, requireSummary?: boolean): NewsItem[];
-  saveContent(newsId: number, content: UzbekContent): void;
-  saveUzbekTitle(newsId: number, title: string): void;
-  failContent(newsId: number, retryAt: number): void;
-  publicationCount(channelId: number, day: string): number;
-  reservePublication(channel: Channel, news: number | readonly number[], day: string, now: number): boolean;
-  completePublication(channelId: number, newsId: number, messageId: number): void;
-  markPublicationUncertain(channelId: number, newsId: number): void;
-  releaseRejectedPublication(channelId: number, newsId: number): void;
-  readState(key: string): unknown;
-  writeState(key: string, value: unknown): void;
-  deleteState(key: string): void;
-  close(): void;
+  touchUser(userId: number, now: number): Awaitable<void>;
+  setUserBlocked(userId: number, blocked: boolean): Awaitable<void>;
+  connectChannel(ownerId: number, id: number, title: string, defaults: ChannelSettings, maxChannels: number): Awaitable<ConnectResult>;
+  listChannels(ownerId: number): Awaitable<Channel[]>;
+  getChannel(ownerId: number, channelId: number): Awaitable<Channel | undefined>;
+  setEnabled(ownerId: number, channelId: number, enabled: boolean): Awaitable<boolean>;
+  updateSettings(ownerId: number, channelId: number, settings: ChannelSettings): Awaitable<boolean>;
+  markChannelUnavailable(channelId: number): Awaitable<void>;
+  acquireDueChannels(now: number, limit: number): Awaitable<Channel[]>;
+  deferChannel(channelId: number, until: number): Awaitable<void>;
+  saveNews(input: NewsInput): Awaitable<boolean>;
+  candidates(channelId: number, since: number, now: number, requireSummary?: boolean): Awaitable<NewsItem[]>;
+  saveContent(newsId: number, content: UzbekContent): Awaitable<void>;
+  saveUzbekTitle(newsId: number, title: string): Awaitable<void>;
+  failContent(newsId: number, retryAt: number): Awaitable<void>;
+  publicationCount(channelId: number, day: string): Awaitable<number>;
+  reservePublication(channel: Channel, news: number | readonly number[], day: string, now: number): Awaitable<boolean>;
+  completePublication(channelId: number, newsId: number, messageId: number): Awaitable<void>;
+  markPublicationUncertain(channelId: number, newsId: number): Awaitable<void>;
+  releaseRejectedPublication(channelId: number, newsId: number): Awaitable<void>;
+  readState(key: string): Awaitable<unknown>;
+  writeState(key: string, value: unknown): Awaitable<void>;
+  deleteState(key: string): Awaitable<void>;
+  close(): Awaitable<void>;
 }

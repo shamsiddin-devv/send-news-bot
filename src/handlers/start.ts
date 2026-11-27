@@ -23,7 +23,7 @@ export function registerHandlers(bot: Bot<BotContext>, repository: Repository, t
   bot.command('settings', (ctx) => ctx.conversation.enter('settings'));
   bot.command('channels', async (ctx) => {
     if (!ctx.from) return;
-    const channels = repository.listChannels(ctx.from.id);
+    const channels = await repository.listChannels(ctx.from.id);
     if (!channels.length) { await ctx.reply(escapeHtml(uz.noChannels), { parse_mode: 'HTML' }); return; }
     for (const channel of channels) {
       const keyboard = new InlineKeyboard()
@@ -35,7 +35,7 @@ export function registerHandlers(bot: Bot<BotContext>, repository: Repository, t
   bot.callbackQuery(/^(start|stop|settings):(-\d+)$/, async (ctx) => {
     const action = ctx.match[1];
     const channelId = Number(ctx.match[2]);
-    const channel = repository.getChannel(ctx.from.id, channelId);
+    const channel = await repository.getChannel(ctx.from.id, channelId);
     if (!channel) { await ctx.answerCallbackQuery({ text: uz.channelMissing }); return; }
     await ctx.answerCallbackQuery();
     if (action === 'settings') {
@@ -46,15 +46,15 @@ export function registerHandlers(bot: Bot<BotContext>, repository: Repository, t
       if (!publishingEnabled) { await ctx.reply(escapeHtml(uz.llmDisabled), { parse_mode: 'HTML' }); return; }
       const access = await telegram.verify(channel.id, ctx.from.id);
       if (!access.ok) {
-        repository.markChannelUnavailable(channel.id);
+        await repository.markChannelUnavailable(channel.id);
         await ctx.reply(escapeHtml(access.message), { parse_mode: 'HTML' });
         return;
       }
     }
-    const changed = repository.setEnabled(ctx.from.id, channel.id, action === 'start');
+    const changed = await repository.setEnabled(ctx.from.id, channel.id, action === 'start');
     await ctx.reply(escapeHtml(changed ? action === 'start' ? uz.started : uz.stopped : uz.inaccessible), { parse_mode: 'HTML' });
     if (changed) {
-      const updated = repository.getChannel(ctx.from.id, channel.id);
+      const updated = await repository.getChannel(ctx.from.id, channel.id);
       if (updated) await ctx.editMessageText(escapeHtml(channelText(updated, timeZone)), {
         parse_mode: 'HTML',
         reply_markup: new InlineKeyboard().text(updated.enabled ? uz.stop : uz.start, `${updated.enabled ? 'stop' : 'start'}:${channel.id}`)

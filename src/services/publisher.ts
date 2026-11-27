@@ -38,12 +38,12 @@ export class Publisher {
   async publish(channel: Channel): Promise<void> {
     const now = this.now();
     if (!this.schedule.isOpen(now)) return;
-    if (this.repository.publicationCount(channel.id, dayKey(now, this.timeZone)) >= channel.dailyLimit) return;
-    const items = this.repository.candidates(channel.id, now - this.maxAgeHours * 3600_000, now, this.news !== undefined)
+    if (await this.repository.publicationCount(channel.id, dayKey(now, this.timeZone)) >= channel.dailyLimit) return;
+    const items = (await this.repository.candidates(channel.id, now - this.maxAgeHours * 3600_000, now, this.news !== undefined))
       .filter((item) => matchesTopics(`${item.title} ${item.excerpt}`, channel.topics));
     if (items.length === 0) return;
     const access = await this.telegram.verify(channel.id, channel.ownerId);
-    if (!access.ok) { this.repository.markChannelUnavailable(channel.id); return; }
+    if (!access.ok) { await this.repository.markChannelUnavailable(channel.id); return; }
     const selected = items.slice(0, 3);
     if (!this.news) {
       const headlines = [];
@@ -54,7 +54,7 @@ export class Publisher {
         }
         try {
           const title = item.uzTitle ?? await this.titleTranslator.translate(item.title);
-          if (!item.uzTitle) this.repository.saveUzbekTitle(item.id, title);
+          if (!item.uzTitle) await this.repository.saveUzbekTitle(item.id, title);
           headlines.push({ id: item.id, url: item.url, title });
         } catch (error) {
           this.logger.warn({ newsId: item.id, error: safeError(error) }, 'Yangilik sarlavhasi tarjima qilinmadi.');
@@ -76,25 +76,25 @@ export class Publisher {
     const [postId] = newsIds;
     if (postId === undefined) return;
     const sendAt = this.now();
-    if (!this.repository.reservePublication(channel, newsIds, dayKey(sendAt, this.timeZone), sendAt)) return;
+    if (!await this.repository.reservePublication(channel, newsIds, dayKey(sendAt, this.timeZone), sendAt)) return;
     try {
       const messageId = await this.telegram.send(channel.id, post);
-      this.repository.completePublication(channel.id, postId, messageId);
+      await this.repository.completePublication(channel.id, postId, messageId);
       this.logger.info({ channelId: channel.id, newsIds, messageId }, 'Yangilik nashr qilindi.');
     } catch (error) {
       if (error instanceof GrammyError && error.error_code === 429) {
-        this.repository.releaseRejectedPublication(channel.id, postId);
+        await this.repository.releaseRejectedPublication(channel.id, postId);
         const seconds = Math.max(1, error.parameters.retry_after ?? 60);
         // Kutish vaqti bazada saqlanadi.
-        this.repository.deferChannel(channel.id, this.now() + seconds * 1000 + 1000);
+        await this.repository.deferChannel(channel.id, this.now() + seconds * 1000 + 1000);
         this.logger.warn({ channelId: channel.id, retryAfter: seconds }, 'Telegram cheklovi: keyingi nashr kechiktirildi.');
       } else if (error instanceof GrammyError && error.error_code >= 400 && error.error_code < 500) {
-        this.repository.releaseRejectedPublication(channel.id, postId);
-        if (isAccessError(error)) this.repository.markChannelUnavailable(channel.id);
-        else this.repository.deferChannel(channel.id, this.now() + 3600_000);
+        await this.repository.releaseRejectedPublication(channel.id, postId);
+        if (isAccessError(error)) await this.repository.markChannelUnavailable(channel.id);
+        else await this.repository.deferChannel(channel.id, this.now() + 3600_000);
         this.logger.warn({ channelId: channel.id, code: error.error_code }, 'Telegram nashrni rad etdi.');
       } else {
-        this.repository.markPublicationUncertain(channel.id, postId);
+        await this.repository.markPublicationUncertain(channel.id, postId);
         this.logger.error({ channelId: channel.id, newsIds, error: safeError(error) }, 'Nashr holati noaniq; qayta yuborilmaydi.');
       }
     }

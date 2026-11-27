@@ -9,10 +9,18 @@ const httpUrl = z.string().url().refine((value) => {
 const boolean = z.enum(['true', 'false']).transform((value) => value === 'true');
 const integer = (min: number, max: number, fallback: number) =>
   z.coerce.number().int().min(min).max(max).default(fallback);
+const postgresUrl = z.string().url().refine((value) => /^postgres(?:ql)?:\/\//i.test(value), 'PostgreSQL havolasi kerak.');
 
 const schema = z.object({
   BOT_TOKEN: z.string().regex(/^\d+:[A-Za-z0-9_-]{20,}$/, 'Bot tokeni noto‘g‘ri.'),
   DATABASE_PATH: z.string().min(1).default('./data/bot.sqlite'),
+  DATABASE_URL: postgresUrl.optional(),
+  DATABASE_URL_UNPOOLED: postgresUrl.optional(),
+  BOT_MODE: z.enum(['polling', 'webhook']).default('polling'),
+  WEBHOOK_BASE_URL: httpUrl.optional(),
+  WEBHOOK_SECRET: z.string().regex(/^[A-Za-z0-9_-]{32,256}$/).optional(),
+  SCHEDULER_SECRET: z.string().regex(/^[A-Za-z0-9_-]{32,256}$/).optional(),
+  PORT: integer(1, 65535, 10000),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).default('info'),
   TIMEZONE: z.string().default('Asia/Tashkent').refine((zone) => {
     try { new Intl.DateTimeFormat('en', { timeZone: zone }); return true; }
@@ -33,6 +41,17 @@ const schema = z.object({
   LLM_TIMEOUT_MS: integer(1000, 120000, 45000),
   LLM_JSON_MODE: boolean.default(true),
 }).superRefine((value, ctx) => {
+  if (value.BOT_MODE === 'webhook') {
+    for (const key of ['DATABASE_URL', 'WEBHOOK_SECRET', 'SCHEDULER_SECRET'] as const) {
+      if (!value[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'Webhook rejimida qiymat majburiy.' });
+    }
+    if (!value.WEBHOOK_BASE_URL?.startsWith('https://')) {
+      ctx.addIssue({ code: 'custom', path: ['WEBHOOK_BASE_URL'], message: 'Webhook rejimida HTTPS manzili majburiy.' });
+    }
+    if (value.WEBHOOK_SECRET && value.WEBHOOK_SECRET === value.SCHEDULER_SECRET) {
+      ctx.addIssue({ code: 'custom', path: ['SCHEDULER_SECRET'], message: 'Ikkita alohida maxfiy qiymat ishlating.' });
+    }
+  }
   if (value.NEWS_LANGUAGE === 'uz' && value.LLM_ENABLED) {
     for (const key of ['LLM_API_KEY', 'LLM_MODEL'] as const) {
       if (!value[key].trim()) ctx.addIssue({ code: 'custom', path: [key], message: 'LLM uchun qiymat majburiy.' });
@@ -42,7 +61,7 @@ const schema = z.object({
 
 export type Config = z.infer<typeof schema>;
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const result = schema.safeParse(env);
+  const result = schema.safeParse({ ...env, WEBHOOK_BASE_URL: env.WEBHOOK_BASE_URL ?? env.RENDER_EXTERNAL_URL });
   if (!result.success) {
     const details = result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.code === 'custom' ? issue.message : 'qiymat yo‘q yoki ruxsat etilgan format va chegaralarga mos emas.'}`).join('; ');
     throw new Error(`Muhit sozlamalari noto‘g‘ri: ${details}`);

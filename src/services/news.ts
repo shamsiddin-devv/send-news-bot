@@ -22,7 +22,7 @@ export class NewsService {
         for (const item of await source.fetch(now)) {
           if (item.publishedAt < now - this.maxAgeHours * 3600_000) continue;
           if (!matchesTopics(`${item.title} ${item.excerpt}`, allTopics)) continue;
-          if (this.repository.saveNews(item)) added++;
+          if (await this.repository.saveNews(item)) added++;
         }
         this.logger.info({ source: source.name, added }, 'RSS manbasi tekshirildi.');
       } catch (error) { this.logger.warn({ source: source.name, error: safeError(error) }, 'RSS manbasini o‘qib bo‘lmadi.'); }
@@ -33,11 +33,11 @@ export class NewsService {
     if (item.uzTitle && item.uzSummary) return { title: item.uzTitle, summary: item.uzSummary };
     try {
       const content = await this.writer.summarize(item);
-      this.repository.saveContent(item.id, content);
+      await this.repository.saveContent(item.id, content);
       return content;
     } catch (error) {
       const retryAt = error instanceof ContentUnavailableError ? error.retryAt : Date.now() + 300_000 * (item.attempts + 1);
-      this.repository.failContent(item.id, retryAt);
+      await this.repository.failContent(item.id, retryAt);
       this.logger.warn({ newsId: item.id, error: safeError(error) }, 'O‘zbekcha xulosa tayyorlanmadi; nashr qilinmadi.');
       return undefined;
     }

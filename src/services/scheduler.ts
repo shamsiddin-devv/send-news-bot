@@ -24,16 +24,20 @@ export class Scheduler {
     if (this.timer) return;
     this.stopping = false;
     const tick = () => {
-      if (this.running || this.stopping) return;
-      this.running = this.tick().catch((error: unknown) => {
+      void this.run().catch((error: unknown) => {
         this.logger.error({ error: safeError(error) }, 'Rejalashtiruvchi aylanishida xato.');
-      }).finally(() => { this.running = undefined; });
+      });
     };
     this.timer = setInterval(tick, this.tickSeconds * 1000);
     tick();
   }
 
-  async tick(): Promise<void> {
+  run(): Promise<void> {
+    this.running ??= this.tick().finally(() => { this.running = undefined; });
+    return this.running;
+  }
+
+  private async tick(): Promise<void> {
     if (this.stopping) return;
     const now = Date.now();
     if (now >= this.nextIngestAt) {
@@ -41,7 +45,7 @@ export class Scheduler {
       await this.news.ingest(now);
     }
     if (this.stopping || !this.publishingEnabled) return;
-    for (const channel of this.repository.acquireDueChannels(Date.now(), 20)) {
+    for (const channel of await this.repository.acquireDueChannels(Date.now(), 20)) {
       if (this.stopping) break;
       try { await this.publisher.publish(channel); }
       catch (error) { this.logger.warn({ channelId: channel.id, error: safeError(error) }, 'Kanal nashri bajarilmadi.'); }
